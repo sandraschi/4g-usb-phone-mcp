@@ -1,0 +1,7 @@
+{
+  "name": "4g-usb-phone-mcp",
+  "description": "MCP server for Huawei Balong 4G USB modem (E3372/E8372) — signal, SMS, network control",
+  "categories": ["hardware", "telecom", "iot"],
+  "tools": ["modem_phone", "show_modem_health_card"],
+  "repository": "https://github.com/sandraschi/4g-usb-phone-mcp"
+}

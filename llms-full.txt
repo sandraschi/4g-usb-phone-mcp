@@ -1,0 +1,656 @@
+# 4g-usb-phone-mcp — Full Documentation
+
+## Overview
+MCP server that wraps the Huawei Balong HTTP API (E3372/E8372 USB LTE dongles).
+Lets agents query signal strength, send/receive SMS, reboot the modem, and
+manage network mode — all over the USB-connected modem's web interface.
+
+## Architecture
+```
+Agent → FastMCP (stdio/SSE) → BalongClient → HTTP → Modem at 192.168.8.1
+```
+
+The BalongClient handles session token refresh (SesTokInfo) and transparent
+retry. All state-changing requests go through the /api/webserver/SesTokInfo
+auth flow automatically.
+
+## Tools
+
+### modem_phone (portmanteau)
+| operation    | params                  | description |
+|-------------|-------------------------|-------------|
+| status      | —                       | Full modem status snapshot |
+| signal      | —                       | RSRP, RSRQ, SINR, bars |
+| sms_list    | —                       | Inbox messages |
+| sms_send    | phone, message          | Send SMS |
+| sms_delete  | sms_index               | Delete by index |
+| reboot      | —                       | Power-cycle modem |
+| net_mode    | net_mode                | Set auto/4g/3g/2g |
+
+### show_modem_health_card
+Rich Prefab UI card with signal bars, operator, network type, traffic counters.
+
+## Configuration
+
+### Env vars
+| Variable       | Default        | Description |
+|---------------|----------------|-------------|
+| BALONG_HOST   | 192.168.8.1    | Modem LAN IP |
+| BALONG_PORT   | 80             | HTTP port    |
+| BALONG_TIMEOUT| 5              | Request timeout seconds |
+| MCP_PORT      | —              | SSE mode port (omit = stdio) |
+
+### Default modem IP
+The Huawei E3372/E8372 defaults to 192.168.8.1 on the USB RNDIS/CDC ECM
+network interface after plugging in. No configuration needed for basic use.
+
+## Transports
+- **stdio**: `uv run python -m four_g_phone_mcp.main` (Claude Desktop)
+- **SSE**: `$env:MCP_PORT=11072; uv run python -m four_g_phone_mcp.main`
+
+## Dependencies
+- Python 3.12+
+- fastmcp >= 3.4.2
+- httpx >= 0.28
+- prefab-ui >= 0.14.0
+
+---
+
+# Huawei Balong E3372 / E8372 — Technical Reference
+
+## Identity
+
+These are **4G LTE USB dongles** — data-only modems, not phones. No eSIM, no
+Android, no voice/SIP stack. They enumerate as a USB network adapter (RNDIS on
+Windows, CDC ECM on macOS/Linux) and expose a web UI at 192.168.8.1.
+
+| Model | Chipset | LTE Category | Download | Upload | Antenna |
+|-------|---------|-------------|----------|--------|---------|
+| E3372h-153 | Balong Hi6220V100 | Cat4 | 150 Mbps | 50 Mbps | 2x TS9 external |
+| E3372h-607 | Balong Hi6220V100 | Cat4 | 150 Mbps | 50 Mbps | 2x TS9 external |
+| E3372s-151 | Balong Hi6920 | Cat4 | 150 Mbps | 50 Mbps | Internal only |
+| E3372s-936 | Balong Hi6920 | Cat4 | 150 Mbps | 50 Mbps | Internal only |
+| E8372h-153 | Balong Hi6220V100 | Cat4 | 150 Mbps | 50 Mbps | 2x TS9 external |
+| E8372h-155 | Balong Hi6220V100 | Cat4 | 150 Mbps | 50 Mbps | 2x TS9 external |
+
+## LTE Bands (typical, varies by SKU)
+- **E3372h-153**: B1/B3/B7/B8/B20 (EU)
+- **E3372h-607**: B1/B2/B3/B4/B5/B7/B8/B28 (Global)
+- **E3372s-151**: B1/B3/B7/B8/B20 (EU)
+- **E3372s-936**: B1/B3/B5/B7/B8/B20/B28/B40 (Asia-Pacific)
+- **E8372h-153**: B1/B3/B7/B8/B20 (EU)
+- **E8372h-155**: B1/B2/B3/B4/B5/B7/B8/B28 (Global/Americas)
+
+Check SKU against local carrier bands before buying. B20 (800 MHz) is critical
+for rural/indoor coverage in Europe.
+
+## Speed (Cat4: 150/50)
+Theoretical: 150 Mbps down, 50 Mbps up (2x2 MIMO, 64QAM). Real-world, with
+good signal (RSRP > -90 dBm) expect **40–80 Mbps down, 10–25 Mbps up**.
+That's fast enough for 4K streaming, video calls, large file transfers, and
+as a primary connection for most tasks. LTE Cat4 is what most phones shipped
+with in 2015–2018.
+
+## Voice — None
+These modems have **no voice/SIP telephony stack**. No circuit-switched voice,
+no VoLTE, no analog audio out. They are pure packet-data modems. If you need
+voice, you must run a VoIP app (SIP client, Discord, Mumble, etc.) over the
+data connection. The 3.5mm jack on some models (E3372s-936) is for headset
+SMS notification, not phone calls.
+
+## eSIM — None
+Physical nano-SIM only. No eUICC chip. No eSIM profile support.
+
+## Walkie-Talkie / PTT Scenario
+
+**Two modems on two notebooks = two IP connections to the internet.** They
+do NOT talk directly to each other over LTE (carrier NAT blocks peer-to-peer).
+For walkie-talkie / push-to-talk you need a rendezvous server:
+
+```
+Notebook A ──USB── Modem A ──LTE── Internet ──Server── Internet ──LTE── Modem B ──USB── Notebook B
+```
+
+Options:
+- **Mumble** (self-hosted Murmur server) — lowest latency, true PTT
+- **Discord** voice channels — instant setup, ~200ms latency
+- **SIP VoIP** (Asterisk/Freeswitch) — full PBX, number dialling
+- **Reticulum / MeshTastic** — not supported, these modems cannot form meshes
+
+The walkie-talkie is an **app on the notebook** — the modem just provides
+the data pipe. The MCP server here gives you signal strength readout so you
+can position the modem for best reception before your call.
+
+## SMS — Yes
+The Balong HTTP API exposes full SMS control:
+- **Send**: POST /api/sms/send-sms
+- **List/Read**: POST /api/sms/sms-list (inbox, pageable)
+- **Delete**: POST /api/sms/delete-sms
+- **Storage**: ~50 messages on-modem
+
+No MMS support in the stock firmware.
+
+## Power
+- **Bus powered**: USB 2.0/3.0, ~400 mA at 5V = ~2W
+- **Peak draw**: ~800 mA during LTE transmit bursts
+- **Thermal**: passive cooling, stays warm to the touch
+- **USB extension cable recommended** in tight spaces (reduces RF interference from the PC)
+
+## Connectivity
+
+### How the computer sees it
+When plugged in, the modem enumerates as:
+1. A USB **network adapter** (RNDIS on Windows, CDC ECM on macOS/Linux)
+2. A USB **virtual CD-ROM** (HiLink mode) containing the driver installer
+3. A **virtual serial port** for AT commands
+
+The OS gets a DHCP lease (typically 192.168.8.x) from the modem's built-in
+DHCP server. The modem performs NAT to the LTE network.
+
+### HiLink vs Stick Mode
+| Mode | Known as | OS sees | IP | Use case |
+|------|----------|---------|----|----------|
+| HiLink | Router mode | Network adapter | 192.168.8.x | Default, plug-and-play |
+| Stick mode | Modem-only | Serial port + NDIS | Carrier IP | Low latency, passthrough |
+
+Stick mode requires flashing with a different firmware (e.g. "dashboardless"
+firmware from 3G/4G resellers). The MCP server works in either mode — the
+HTTP API is the same.
+
+### AT Commands
+Over the virtual serial port (CDC ACM / COM port):
+- `AT+CSQ` — signal quality
+- `AT+CREG?` — network registration
+- `AT+CGATT=1` — attach to packet service
+- `AT^SYSINFO` — system info
+- `AT^NDISDUP=1,1,"apn"` — manual PDP context (stick mode)
+
+## Antennas
+
+| Variant | Connector | Gain |
+|---------|-----------|------|
+| E3372h / E8372h (with TS9 ports) | 2x TS9 female | Supports 2x2 MIMO |
+| E3372s (no ports) | Internal PCB trace | ~1–2 dBi, omnidirectional |
+| E3372h-153 | Comes with 2x small puck antennas | ~3 dBi each |
+| High-gain upgrade | Aftermarket 6–10 dBi log-periodic | Massive improvement in fringe areas |
+
+For permanent installations, mount the modem in a weather box near the window
+with a **short USB extension** (2–3 m active USB 3.0 cable) and external
+TS9 antennas.
+
+## Where to Buy
+
+| Source | Price (2026) | Notes |
+|--------|-------------|-------|
+| **AliExpress** | $25–40 | Search "Huawei E3372 4G dongle". Shipping 2–4 weeks. Check band SKU. |
+| **Amazon** | $35–55 | Prime shipping. Amazon Warehouse deals ~$25. |
+| **Local electronics** (MediaMarkt/Saturn/Conrad) | €40–60 | Buy local for easy returns. Often branded "HiLink" or "o2". |
+| **Ebay used** | $10–20 | Second-hand enterprise surplus. May be carrier-locked. |
+| **Refurb by Huawei** | $20–30 | Huawei's own refurb shop (sparse stock). |
+
+### Carrier-lock warning
+Many E3372/E8372 units sold by carriers (Vodafone, T-Mobile, o2, Three) are
+**SIM-locked**. Unlock tools exist (`dfs -r` tool for Balong, paid unlock
+codes from third parties, or Huawei's official unlock code generator using
+IMEI). Some carriers will unlock for free after 6–12 months.
+
+Before buying, confirm:
+1. LTE bands match your carrier
+2. Unit is **unlocked** or you have a way to unlock it
+3. Firmware is "HiLink" (default) — avoids driver headaches on all OSes
+
+## Firmware Flashing
+
+### HiLink → Stick mode
+Flashing converts the modem to act as a pure modem without routing/NAT.
+This is a deterministic process using the `dfs` tool (Windows-only):
+
+```powershell
+# Download DFS tool and a dashboardless firmware
+dfs -r e3372h_stick.bin --flash
+```
+
+Results in lower latency (~5 ms versus ~15 ms through NAT) and carrier-assigned
+public/private IP on the USB interface. Trade-off: no web UI at 192.168.8.1.
+
+### Unlocking
+```powershell
+dfs -r unlock /IMEI:123456789012345
+# or use online Huawei unlock code calculator (IMEI → code)
+AT^CARDLOCK="CODE"  # via serial AT command
+```
+
+## USB Interface Pinout (for reference)
+
+```
+USB-A male:
+  Pin 1: VBUS (+5V)
+  Pin 2: D-
+  Pin 3: D+
+  Pin 4: GND
+```
+
+The modem draws up to 800 mA. On USB 2.0 ports this is within spec. On some
+older hubs, use a powered USB hub.
+
+## Key Differences: E3372 vs E8372
+
+| Feature | E3372 | E8372 |
+|---------|-------|-------|
+| Dimensions | ~90 x 30 x 14 mm | ~94 x 30 x 14 mm |
+| Wi-Fi AP | No (E3372h/s) | **Yes** — 802.11 b/g/n, up to 32 clients |
+| Antenna ports | TS9 on -h variants | TS9 on -h variants |
+| Use case | Single PC | Hotspot for multiple devices |
+| Price delta | base | +$10–15 |
+
+The E8372 is essentially an E3372 with a built-in Wi-Fi access point. The
+underlying modem chipset is identical. If you only connect one computer,
+the E3372 is sufficient.
+
+## OS Network Setup
+
+### Windows 10/11
+Plug and play. The modem installs as a "Remote NDIS Compatible Device" in
+Network Adapters. DHCP gives you 192.168.8.x. The web UI is at 192.168.8.1.
+
+### macOS
+Plug and play (since macOS 10.11+). The modem shows as "Huawei Mobile" in
+Network Settings, USB CDC ECM driver built-in.
+
+### Linux
+```
+# The modem typically uses the cdc_ether or rndis_host kernel module
+sudo modprobe rndis_host
+# Interface shows up as ethX or enpXsY
+# DHCP lease from 192.168.8.1
+```
+
+No additional drivers needed on modern kernels (5.4+).
+
+## Performance Tuning
+
+### Antenna Positioning
+Signal quality is everything. The MCP server's `modem_phone(operation="signal")`
+gives real-time RSRP/RSRQ/SINR. Walk around with the modem on a USB extension
+cable while polling — aim for:
+- **RSRP > -95 dBm** (3+ bars)
+- **RSRQ > -10 dB** (low noise)
+- **SINR > 15 dB** (clean signal)
+
+### Band Locking
+If your carrier has a preferred band, lock the modem:
+```
+modem_phone(operation="net_mode", net_mode="4g")
+```
+
+This prevents drops to 3G in fringe areas.
+
+### USB Cable
+Use a **shielded USB extension cable** (2–3 m max for USB 2.0). Keep the
+modem away from the PC's PSU and monitor — electrical noise degrades the
+LTE signal measurably. The MCP server's signal tool makes this easy to
+verify empirically.
+
+---
+
+# Integration: 4g-usb-phone-mcp + telephony-mcp
+
+**These two servers form a complete field-telecom stack.** One gives you the
+cellular data pipe; the other gives you PSTN voice calls over it.
+
+```
+4g-usb-phone-mcp              telephony-mcp
+┌────────────────────┐        ┌──────────────────────┐
+│ Signal check        │        │ Place call with TTS  │
+│ SMS send/receive    │───────▶│ via Asterisk/Twilio  │
+│ Band lock / reboot  │  SIP   │ Call audit log       │
+│ Traffic stats       │  trunk │ Contact management   │
+└────────┬───────────┘        └──────────┬───────────┘
+         │                               │
+         ▼                               ▼
+   USB E3372/E8372              Asterisk Docker
+   (4G LTE connection)          (SIP trunk provider)
+```
+
+## Usage Scenarios
+
+### 1. Remote Server Room / IoT Site (Primary Use Case)
+
+A headless machine in a basement or remote site with the USB dongle as the
+only internet connection. The agent stack provides both **connectivity insight**
+and **alert escalation** in one loop:
+
+```
+1. modem_phone(operation="status")           # → signal 2/4 bars, operator "A1"
+2. If signal < 2 bars: modem_phone(...,
+        operation="net_mode", net_mode="4g") # → lock to 4G, prevent 3G fallback
+3. In an emergency: call make_call(client=...,
+        contact="Sandra", message="Server room temp critical")  # → PSTN alert
+```
+
+The agent never needs a separate internet connection to manage the modem or
+make calls — both run over the same USB dongle's LTE link.
+
+### 2. SMS Alert + Voice Escalation Ladder
+
+Use the modem's SMS (free/cheap via bundled SIM plan) for routine alerts,
+and escalate to voice PSTN calls (via telephony-mcp) if the SMS is not
+acknowledged:
+
+```
+modem_phone(operation="sms_send",
+    phone="+436641234567", message="Water sensor triggered")
+# ... wait 5 minutes ...
+modem_phone(operation="sms_list")  # check for "ACK" reply
+
+# No ACK → escalate
+from telephony_mcp.server import make_call  # via bridge/envelope
+make_call(contact="Sandra", message="Water sensor - SMS not acknowledged")
+```
+
+### 3. Signal-Quality Gate for VoIP Calls
+
+Before placing a PSTN call via telephony-mcp, check whether the LTE link
+is stable enough:
+
+```
+status = modem_phone(operation="signal")
+if status["data"]["rsrp_dbm"] > -105 and status["data"]["sinr_db"] > 10:
+    make_call(...)  # good enough for VoIP
+else:
+    # SMS instead — more resilient at low signal
+    modem_phone(operation="sms_send", phone="...", message="...")
+```
+
+This prevents expensive failed PSTN call attempts (€0.05–0.20 per call via
+SIP trunk) when the signal is too poor.
+
+### 4. Field Notebook Pair (Walkie-Talkie + PSTN Backup)
+
+Two notebooks in the field, each with an E3372, running both servers:
+
+| Notebook A | Notebook B |
+|-----------|-----------|
+| Mumble client for PTT | Mumble client for PTT |
+| telephony-mcp for PSTN out | 4g-usb-phone-mcp for signal |
+
+The 4G connection provides the Mumble voice channel (free). If Mumble is
+unreliable (high latency, packet loss on LTE), telephony-mcp on either
+notebook can fall back to PSTN calls — the SIP trunk runs over the same
+4G data link:
+
+```
+1. Early in the field day: modem_phone(operation="status")
+   → signal 4/4 bars → "good to go"
+2. Mid-day Mumble degrades: modem_phone(operation="signal")
+   → RSRP -108 dBm → "signal dropped"
+3. Fall back: make_call(contact="Notebook B", message="Switch to phone")
+```
+
+### 5. Backup Link for the Fleet Dashboard (meta-mcp)
+
+Register the USB modem as a network health data source in the fleet
+dashboard. meta-mcp's `heartbeat_pulse` can probe both servers:
+
+```
+4g-usb-phone-mcp → GET /health → signal status → fleet dashboard KPI
+telephony-mcp    → GET /health → asterisk/SIP trunk → fleet dashboard KPI
+```
+
+This gives the fleet a real-time view of "can we still reach the outside
+world?" and "can we make calls?" as two separate health signals.
+
+## Architecture Pattern: Agentic Dispatch Loop
+
+```python
+# Pseudocode — the agent decides this chain autonomously
+status = modem_phone(operation="status")
+if status["success"]:
+    signal_ok = status["data"]["signal"]["bars"] >= 2
+    if signal_ok and event_requires_voice:
+        make_call(contact="Sandra", message=alert_text)
+    elif signal_ok and event_requires_text:
+        modem_phone(operation="sms_send", phone="...", message=alert_text)
+    else:
+        log("Signal too poor, cannot alert — queued for retry")
+```
+
+The USB modem provides both the transport and the signal-quality telemetry.
+Telephony-mcp provides the voice application layer. Together they close the
+loop: know your link quality, then use it.
+
+---
+
+# Future: sdr-mcp — The RF Layer
+
+The third layer of the stack, below the modem's abstracted "signal: 3/4 bars,"
+is **raw radio**. An SDR (Software-Defined Radio) lets you see, record, and
+transmit the actual electromagnetic spectrum — the physical layer that the
+Balong modem abstracts away.
+
+### SDR is a Low-End Spectrometer
+
+That's exactly what it is. Compare:
+
+| | Lab SA (R&S FPH, Keysight) | RTL-SDR v4 | HackRF One |
+|---|---|---|---|
+| **Price** | $10,000–$50,000 | **$25** | **$300** |
+| **Instant bandwidth** | Up to 8 GHz real-time | 3.2 MHz | 20 MHz |
+| **Dynamic range** | >100 dB | ~50 dB | ~60 dB |
+| **Calibration** | NIST-traceable | ±2 dB uncalibrated | ±2 dB uncalibrated |
+| **Phase noise** | -120 dBc/Hz @ 10 kHz | -80 dBc/Hz | -90 dBc/Hz |
+| **Stays plugged in** | In a cupboard, too expensive to deploy | **24/7 in your USB port** | **24/7 in your USB port** |
+| **Reads by AI** | No ($50k instrument has no API) | **Yes, via MCP** | **Yes, via MCP** |
+
+The tradeoff is **calibration vs access**. A lab SA costs as much as a car
+and sits in a cupboard. An RTL-SDR costs as much as lunch and stays in the
+USB port 24/7, feeding real-time spectrum into an agent loop.
+
+When the modem says "RSRQ -14 dB" (noisy), the SDR is the instrument that
+shows you **the noise floor**, **the interfering carrier**, and **the empty
+band 3 MHz away** — exactly what you'd do with a field spectrometer but
+readable by Claude.
+
+> **Key insight**: A lab SA gives you certified power measurements. An SDR
+> gives you _presence_ — "is this band clean or dirty?" — which is 90% of
+> what you need for operational cellular work, at 0.2% of the cost.
+
+## The Stack, Complete
+
+```
+Layer       Server              What it sees              Hardware
+────────────────────────────────────────────────────────────────────
+Application telephony-mcp       Phone numbers, SIP trunks  Asterisk Docker
+Data        4g-usb-phone-mcp    RSRP, SMS, LTE mode        Huawei E3372
+RF          sdr-mcp             IQ samples, spectrograms   RTL-SDR / HackRF
+```
+
+Each layer answers a different question the LLM cannot answer from the layer
+above alone:
+
+| Question | Who can answer |
+|----------|---------------|
+| "Can I call Sandra?" | telephony-mcp (SIP trunk OK?) |
+| "Is my signal good enough?" | 4g-usb-phone-mcp (RSRP, bars) |
+| **"Why is my signal bad?"** | **sdr-mcp (interference? band congestion? wrong cell?)** |
+
+The modem reports RSRP -115 dBm. You know it's bad. You don't know _why_.
+The SDR shows you: "The cell your modem is camped on is saturated (high noise
+floor on band 20). Switch to band 3."
+
+## Hardware Tiers for sdr-mcp
+
+| Device | Cost | TX | BW | Cellular use |
+|--------|------|----|----|-------------|
+| **RTL-SDR v4** | $25 | No | 3.2 MHz | Spectrum analysis, GSM decode (passive), LTE band scanner |
+| **LimeSDR Mini** | $150 | Yes | 30 MHz | GSM BTS (private cell), LTE UE simulator, active probing |
+| **HackRF One** | $300 | Yes | 20 MHz | Full duplex cellular experiments, signal injection, spectrum patrol |
+| **ADALM-PLUTO** | $150 | Yes | 20 MHz | LTE UE, OFDM learning, carrier-grade experimentation |
+| **USRP B210** | $1100 | Yes | 56 MHz | Lab-grade cellular test equipment, 2x2 MIMO LTE |
+
+
+## Usage Scenarios: sdr-mcp + 4g-usb-phone-mcp
+
+### 1. Spectrum Survey — "Why is my modem slow?"
+
+The modem says RSRP -98 dBm (ok) but SINR 2 dB (terrible). The SDR answers
+why:
+
+```
+sdr_scan(freq_start=800, freq_end=2700, bandwidth=3.2)
+→ Spectrogram shows noise floor -95 dBm on band 20 (800 MHz)
+→ One cell broadcasting at -72 dBm on band 3 (1800 MHz) — much cleaner
+
+→ modem_phone(operation="net_mode", net_mode="4g")
+→ But this alone might not switch bands...
+→ sdr_band_force(cell_id="12345", band=3)  # future tool
+```
+
+Agents that can see both layers autonomously diagnose and fix RF problems
+that would require a human with a field spectrometer today.
+
+### 2. GSM Paging Capture — Silent SMS Trigger
+
+An RTL-SDR running `gr-gsm` or `AirProbe` can decode GSM control channels
+passively. An MCP tool could expose:
+
+```
+gsm_paging_sniff(duration_s=60)
+→ IMSI 232-01-1234567890 paged on LAC 0x1A3B
+→ SMS pending for subscriber
+```
+
+Combine with `4g-usb-phone-mcp` SMS tools: the SDR sees the network paging
+the modem. The agent can then pre-fetch SMS via the API. Useful for RF
+monitoring and lawful IMSI-catcher detection.
+
+### 3. Cell Congestion Analysis
+
+```
+sdr_scan_lte_bands()
+→ Band 20: 3 cells detected, load 78% (noise rise 6 dB)
+→ Band 3:  2 cells detected, load 22%
+→ Band 7:  1 cell detected, load 45%
+
+Recommendation: Lock modem to Band 3 for best throughput.
+```
+
+### 4. Private GSM/LTE Cell (Transceiver SDR Required)
+
+With a HackRF or LimeSDR and open-source cellular stacks (OsmoBTS for GSM,
+OpenAirInterface or srsRAN for LTE), you can run a **private cell**:
+
+```
+srsran_start_enb(mcc="232", mnc="01", band=3, dl_earfcn=1650)
+→ eNB started on 1805 MHz, 10 MHz bandwidth
+→ PLMN 232-01 broadcast, 1 UE connected
+
+# The E3372 can now camp on YOUR cell
+modem_phone(operation="status")
+→ operator: "sdr-mcp private" (PLMN 232-01)
+→ signal: 4/4 bars (it's right next to the SDR)
+→ WAN IP: 10.0.0.2 (routed through the SDR host)
+```
+
+This is an **entirely offline, self-contained cellular network** — no carrier
+involvement. Useful for:
+- Emergency response in disaster zones (no infrastructure needed)
+- Secure comms where carrier networks are untrusted
+- Lab testing of IoT devices without a SIM or carrier
+- Rural/remote off-grid cellular
+
+### 5. IMSI Catcher Detection
+
+An SDR can passively detect suspicious cell towers (rogue BTS, IMSI catchers,
+Stingrays) by comparing what the modem reports to what the SDR sees:
+
+```
+modem_cell = modem_phone(operation="status")["data"]["signal"]["cell_id"]
+ambient_cells = sdr_scan_gsm(seconds=30)
+
+for cell in ambient_cells:
+    if cell.lac not in known_lacs:
+        alert(f"Suspicious cell at +{cell.lac} — possible IMSI catcher")
+```
+
+### 6. Antenna Alignment (Field Ops)
+
+Mount an SDR + directional antenna on a tripod. Sweep the horizon while
+an LLM reads signal strength from the SDR:
+
+```
+for azimuth in range(0, 360, 10):
+    servo_move(azimuth)
+    power = sdr_measure_channel_power(freq=band3_center)
+    log(f"{azimuth}°: {power} dBm")
+
+→ Best bearing: 210° (azimuth with strongest signal, 12 dB above average)
+```
+
+Then check the result through the modem:
+```
+modem_phone(operation="signal")
+→ RSRP improved from -115 to -92 dBm after alignment
+```
+
+## Forward-Looking: The AI Radio Operator
+
+The long-term vision is an agent that operates all three layers autonomously:
+
+```
+┌──────────────────────────────────────────────┐
+│              AI Radio Operator                │
+│  (Claude / agent loop)                        │
+│                                               │
+│  sdr-mcp     4g-usb-phone-mcp  telephony-mcp │
+│  ├ RF scan    ├ signal check   ├ place call   │
+│  ├ spectrum   ├ SMS send       ├ log audit    │
+│  ├ decode GSM ├ band lock      └ contacts     │
+│  └ private BTS├ reboot                          │
+│               └ traffic stats                   │
+└──────────────────────────────────────────────┘
+        │
+        ▼
+  Physical LTE link ↔ Internet ↔ PSTN
+```
+
+Use cases this unlocks:
+
+| Scenario | SDR does | Modem does | telephony-mcp does |
+|----------|----------|------------|-------------------|
+| Field site deploy | Scan bands, find clean spectrum | Lock to best band, connect | Report OK via voice call |
+| Congested network | Identify least-loaded cell | Switch cells | Call quality test |
+| No infrastructure | Run private LTE BTS (srsRAN) | Camp on private cell | SIP calls over local LTE |
+| RF forensic | Capture IQ of suspicious event | Log modem state at that time | Alert via PSTN |
+| Antenna install | Sweep bearing for peak signal | Verify RSRP improvement | — |
+
+### Cost of the Full Stack
+
+| Component | Cost |
+|-----------|------|
+| Huawei E3372 (4G modem) | $35 |
+| RTL-SDR v4 (receive only) | $25 |
+| HackRF One / PlutoSDR (TX + RX) | $150–$300 |
+| Total (receive only) | **$60** |
+| Total (full duplex) | **$185–$335** |
+
+For $60 you get an AI-controllable cellular stack that can:
+- Monitor live LTE signal metrics
+- Send and receive SMS
+- See the full RF spectrum around the modem
+- Diagnose congestion, interference, and cell load
+- Detect IMSI catchers and rogue towers
+
+For $300 you add the ability to:
+- Run a fully private GSM/LTE cell
+- Transmit on any frequency (within regulatory limits)
+- Test MCP server responses over a real, self-contained cellular link
+
+### Regulatory Note
+
+Transmitting with SDR requires appropriate licensing (HAM radio license in
+most jurisdictions for the 70cm/2m bands, or experimental/innovation license
+for cellular bands). The receive-only path (RTL-SDR + E3372) has no regulatory
+restrictions — you are allowed to look at spectrum. The moment you transmit
+on cellular frequencies, you fall under telecom regulation. The agent should
+check a jurisdiction config flag before allowing TX operations.

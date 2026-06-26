@@ -1,0 +1,25 @@
+# 4g-usb-phone-mcp
+
+MCP server for controlling a Huawei Balong 4G USB modem (E3372/E8372) via its HTTP API.
+
+## Links
+- [Source](https://github.com/sandraschi/4g-usb-phone-mcp)
+- [Full docs](llms-full.txt)
+
+## Quick start
+1. Plug in Huawei E3372/E8372 USB modem
+2. `just serve` (stdio) or `$env:MCP_PORT=11072; just serve-http` (SSE)
+3. Use `modem_phone(operation="status")` to check signal
+
+## Tools
+- `modem_phone` — portmanteau with operations: status, signal, sms_list, sms_send, sms_delete, reboot, net_mode
+- `show_modem_health_card` — rich Prefab card with live modem status
+
+## Env vars
+- `BALONG_HOST` — modem IP (default 192.168.8.1)
+- `BALONG_PORT` — HTTP port (default 80)
+- `BALONG_TIMEOUT` — HTTP timeout seconds (default 5)
+
+## Related fleet servers
+- [telephony-mcp](https://github.com/sandraschi/telephony-mcp) — PSTN voice calls over your LTE link
+- `sdr-mcp` (planned) — RF spectrum analysis with a $25 RTL-SDR, sees what the modem abstracts
