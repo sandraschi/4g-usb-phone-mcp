@@ -146,10 +146,17 @@ async def modem_phone(
     return {
         "success": False,
         "message": f"Unknown operation: {operation}",
-        "data": {"valid_operations": [
-            "status", "signal", "sms_list", "sms_send",
-            "sms_delete", "reboot", "net_mode",
-        ]},
+        "data": {
+            "valid_operations": [
+                "status",
+                "signal",
+                "sms_list",
+                "sms_send",
+                "sms_delete",
+                "reboot",
+                "net_mode",
+            ]
+        },
     }
 
 
