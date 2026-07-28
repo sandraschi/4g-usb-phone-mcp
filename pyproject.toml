@@ -2,17 +2,30 @@
 name = "four-g-phone-mcp"
 version = "0.1.0"
 description = "MCP server for controlling a 4G USB modem (Huawei E3372/E8372) over the Balong HTTP API"
-authors = [{ name = "Sandra Schipal", email = "sandra@example.com" }]
+authors = [{ name = "Sandra Schipal", email = "sandraschipal@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = [
-    "fastmcp>=3.4.2,<4",
+    "fastmcp>=3.4.4,<4",
     "httpx>=0.28,<1",
     "uvicorn[standard]>=0.34,<1",
     "prefab-ui>=0.14.0",
 ]
 
 [dependency-groups]
-dev = []
+dev = [
+    "ruff>=0.11.0",
+    "pre-commit>=4.0.0",
+    "pytest>=8.0.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
 
 [build-system]
 requires = ["hatchling"]

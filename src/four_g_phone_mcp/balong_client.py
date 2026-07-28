@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from datetime import UTC
 from typing import Any
 
 import httpx
@@ -229,7 +230,7 @@ class BalongClient:
         )
         raw = await self._post(SMS_LIST_PATH, xml)
         messages: list[dict[str, str]] = []
-        for child_name in ("Message",):
+        for _child_name in ("Message",):
             count = int(raw.get("Count", "0"))
             if count == 0:
                 break
@@ -237,15 +238,15 @@ class BalongClient:
 
     async def send_sms(self, phone: str, message: str) -> bool:
         xml = (
-            f'<request>'
-            f'  <Index>-1</Index>'
-            f'  <Phones><Phone>{phone}</Phone></Phones>'
-            f'  <Sca></Sca>'
-            f'  <Content>{message}</Content>'
-            f'  <Length>{len(message)}</Length>'
-            f'  <Reserved>1</Reserved>'
-            f'  <Date>{self._now_str()}</Date>'
-            f'</request>'
+            f"<request>"
+            f"  <Index>-1</Index>"
+            f"  <Phones><Phone>{phone}</Phone></Phones>"
+            f"  <Sca></Sca>"
+            f"  <Content>{message}</Content>"
+            f"  <Length>{len(message)}</Length>"
+            f"  <Reserved>1</Reserved>"
+            f"  <Date>{self._now_str()}</Date>"
+            f"</request>"
         )
         result = await self._post(SMS_SEND_PATH, xml)
         return "OK" in str(result)
@@ -312,6 +313,6 @@ class BalongClient:
 
     @staticmethod
     def _now_str() -> str:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")

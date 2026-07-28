@@ -1,3 +1,5 @@
+set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
+
 default: serve
 
 # Run in stdio mode (Claude Desktop)
@@ -19,3 +21,13 @@ lint:
 # Format
 fmt:
     uv run ruff format src/
+
+# CI: Windows quality gate
+ci:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/ci.ps1
+
+hooks-install:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/install-pre-commit.ps1
+
+hooks-run:
+    uv run pre-commit run --all-files
