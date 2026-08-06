@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>UltraBook Pro 15 – Demo Webshop</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f5f5;}
+    header{background:#222;color:white;padding:20px;text-align:center;}
+    .product{max-width:900px;margin:auto;padding:40px 20px;background:white;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,.1);display:flex;flex-wrap:wrap;gap:30px;}
+    .image{flex:1 1 300px;overflow:hidden;border-radius:4px;}
+    .image img{width:100%;height:auto;object-fit:cover;}
+    .info{flex:2 1 400px;padding-top:10px;}
+    h1{margin-top:0;font-size:2.5rem;color:#222;}
+    p.price{font-size:1.8rem;color:#e53935;margin:.5em 0;}
+    ul{list-style:none;padding-left:0;}
+    li::before{content:"\2713\0020";color:#4caf50;font-weight:bold;}
+    a.back{display:inline-block;margin-top:20px;color:#1976d2;text-decoration:none;}
+  </style>
+</head>
+<body>
+<header><h1>Demo Webshop</h1></header>
+<div class="product">
+  <div class="image"><img src="https://images.unsplash.com/photo-1523479974e1b-e0d9f5a2fb0d?auto=format&fit=crop&w=800&q=80" alt="UltraBook Pro 15"></div>
+  <div class="info">
+    <h1>UltraBook Pro 15</h1>
+    <p class="price">$1,299</p>
+    <p>A lightweight yet powerful ultrabook that blends performance and portability. Ideal for professionals on the go.</p>
+    <ul>
+      <li>15.6" 4K OLED display with touch capability</li>
+      <li>Intel Core i7‑1185G7 processor, 16GB RAM, 1TB SSD</li>
+      <li>Backlit keyboard with fingerprint sensor</li>
+      <li>Wi‑Fi 6 & Bluetooth 5.2 connectivity</li>
+    </ul>
+    <a href="index.html" class="back">← Back to shop</a>
+  </div>
+</div>
+<footer style="text-align:center;padding:15px;color:#777;background:#222;margin-top:40px;">
+  © 2026 Demo Webshop
+</footer>
+</body>
+</html>

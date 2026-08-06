@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" / >
+  <title>Demo Webshop</title>
+  <style>
+    body {font-family:Arial,Helvetica,sans-serif; margin:0; background:#f5f5f5;}
+    header{background:#222;color:white;padding:20px;text-align:center;}
+    .hero{max-width:1200px;margin:auto;padding:40px 20px;background:url('https://images.unsplash.com/photo-1516116216624-53bb7c6b8e1d?auto=format&fit=crop&w=1200&q=80') center/cover no-repeat;color:white;text-align:center;}
+    .hero h1{font-size:3rem;margin-bottom:.5em;} 
+    .hero p{font-size:1.2rem;max-width:800px;margin:auto;}
+    .products{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;padding:40px 20px;max-width:1200px;margin:auto;}
+    .product-card{background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 5px rgba(0,0,0,.1);display:flex;flex-direction:column;height:100%;}
+    .product-card img{width:100%;height:180px;object-fit:cover;}
+    .product-info{padding:15px;flex-grow:1;display:flex;flex-direction:column;justify-content:space-between;}
+    .product-title{font-size:1rem;font-weight:bold;margin-bottom:.5em;color:#333;}
+    .product-price{color:#e53935;font-weight:bold;margin-top:auto;}
+    footer{background:#222;color:white;text-align:center;padding:15px 20px;font-size:.9rem;} 
+    a {text-decoration:none; colorinherit: inherit; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Demo Webshop</h1>
+</header>
+<div class="hero">
+  <h1>Welcome to Our Store</h1>
+  <p>Discover the best gadgets and accessories, curated for tech enthusiasts.</p>
+</div>
+<section class="products" aria-label="Product List">
+  <!-- Sample product cards -->
+  <a href="smartphone-x200.html" style="display:block;">   
+    <article class="product-card">
+      <img src="https://images.unsplash.com/photo-1517430816045-df6bb27d9a87?auto=format&fit=crop&w=400&q=80" alt="Smartphone X200" />
+      <div class="product-info">
+        <h2 class="product-title">Smartphone X200</h2>
+        <p class="product-price">$799</p>
+      </div>
+    </article>
+  </a>
+  <a href="ultrabook-pro-15.html" style="display:block;">
+    <article class="product-card">
+      <img src="https://images.unsplash.com/photo-1523479974e1b-e0d9f5a2fb0d?auto=format&fit=crop&w=400&q=80" alt="UltraBook Pro 15" />
+      <div class="product-info">
+        <h2 class="product-title">UltraBook Pro 15</h2>
+        <p class="product-price">$1,299</p>
+      </div>
+    </article>
+  </a>
+  <a href="headset-199.html" style="display:block;">
+    <article class="product-card">
+      <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=400&q=80" alt="Noise-Canceling Headset" />
+      <div class="product-info">
+        <h2 class="product-title">Noise‑Canceling Headset</h2>
+        <p class="product-price">$199</p>
+      </div>
+    </article>
+  </a>
+  <!-- Add more cards as needed -->
+</section>
+<footer>© 2026 Demo Webshop. All rights reserved.</footer>
+</body>
+</html>
