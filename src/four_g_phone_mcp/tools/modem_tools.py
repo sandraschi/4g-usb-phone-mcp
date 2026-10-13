@@ -1,4 +1,4 @@
-"""4G USB modem tools — portmanteau pattern."""
+"""4G USB modem tools - portmanteau pattern."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ async def modem_phone(
     tool definitions for a simple USB device.
 
     Operations:
-    - status: Full modem status — signal strength, network type, operator, traffic
+    - status: Full modem status - signal strength, network type, operator, traffic
     - signal: Signal metrics (RSRP, RSRQ, SINR, RSSI bars)
     - sms_list: List SMS inbox messages
     - sms_send: Send an SMS (requires phone=+43xxx, message=...)
@@ -55,7 +55,7 @@ async def modem_phone(
             status = await client.full_status()
             return {
                 "success": True,
-                "message": f"Modem OK — {status['operator']['full_name']} ({status['network']['type']}) "
+                "message": f"Modem OK - {status['operator']['full_name']} ({status['network']['type']}) "
                 f"signal: {status['signal']['bars']}/4 bars",
                 "data": status,
             }
@@ -69,7 +69,7 @@ async def modem_phone(
             return {
                 "success": True,
                 "message": f"RSRP {sig.rsrp} dBm ({_signal_strength_bars(sig.rsrp)}/4 bars), "
-                f"RSRQ {sig.rsrq} dB, SINR {sig.sinr} dB — {plmn.full_name}",
+                f"RSRQ {sig.rsrq} dB, SINR {sig.sinr} dB - {plmn.full_name}",
                 "data": {
                     "rsrp_dbm": sig.rsrp,
                     "rsrq_db": sig.rsrq,
@@ -177,7 +177,7 @@ async def show_modem_health_card(ctx: Context = None) -> Any:
         from prefab_ui import PrefabApp
         from prefab_ui.components import Div, Text
 
-        app = PrefabApp(title="4G Modem — Offline")
+        app = PrefabApp(title="4G Modem - Offline")
         app.add(Div())
         app.add(Text(str(e)))
         return {"content": f"Modem unreachable: {e}", "structured_content": app}
@@ -191,7 +191,7 @@ async def show_modem_health_card(ctx: Context = None) -> Any:
     op = status["operator"]
     dev = status["device"]
 
-    Heading(f"{dev['name']} — {op['full_name'] or op['short_name']}")
+    Heading(f"{dev['name']} - {op['full_name'] or op['short_name']}")
     Div()
 
     bars = sig["bars"]
@@ -205,8 +205,8 @@ async def show_modem_health_card(ctx: Context = None) -> Any:
     Row(label="RSRP", value=f"{sig['rsrp_dbm']} dBm")
     Row(label="RSRQ", value=f"{sig['rsrq_db']} dB")
     Row(label="SINR", value=f"{sig['sinr_db']} dB")
-    Row(label="Cell ID", value=sig["cell_id"] or "—")
-    Row(label="WAN IP", value=dev["wan_ip"] or "—")
+    Row(label="Cell ID", value=sig["cell_id"] or "-")
+    Row(label="WAN IP", value=dev["wan_ip"] or "-")
     Row(label="Uptime", value=f"{net['uptime_seconds'] // 60}m {net['uptime_seconds'] % 60}s")
     Row(label="FW", value=dev["firmware"])
     Div()
@@ -217,8 +217,8 @@ async def show_modem_health_card(ctx: Context = None) -> Any:
     Row(label="Session UL", value=f"{tr['current_upload_kb'] / 1024:.1f} MB")
 
     text = (
-        f"**{dev['name']}** on {op['full_name']} ({net['type']}) — "
+        f"**{dev['name']}** on {op['full_name']} ({net['type']}) - "
         f"Signal {sig['bars']}/4 bars, RSRP {sig['rsrp_dbm']} dBm, "
-        f"WAN {dev['wan_ip'] or '—'}"
+        f"WAN {dev['wan_ip'] or '-'}"
     )
     return {"content": text, "structured_content": app}
